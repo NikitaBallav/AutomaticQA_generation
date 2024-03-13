@@ -13,7 +13,7 @@ from langchain_community.vectorstores import FAISS
 
 
 
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = "enter you openai api key here"
 
 # Set file path
 file_path = 'RevenueCode72_76.pdf'
