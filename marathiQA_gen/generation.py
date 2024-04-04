@@ -16,40 +16,44 @@ from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 os.environ["OPENAI_API_KEY"] = "ai key"
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 # Set file path
-file_path = 'a142.pdf'
+file_path = 'a142.txt'
 
-# Load data from PDF
-loader = PyPDFLoader(file_path)
-data = loader.load()
+# Load data from text file
+with open(file_path, 'r', encoding='utf-8') as file:
+    data = file.read()
 
-question_gen = ''
+# Print the content of the file
+print(data)
 
-for page in data:
-    question_gen += page.page_content
+question_gen = data
 
 splitter_ques_gen = TokenTextSplitter(
     model_name='gpt-3.5-turbo',
-    chunk_size=1000,
-    chunk_overlap=100
+    chunk_size=200,
+    chunk_overlap=70
 )
-# splitter_ques_gen : used to split text into chunks or segments.
-# These chunks are stored in the variable chunks_ques_gen.
 
 chunks_ques_gen = splitter_ques_gen.split_text(question_gen)
-# Print the number of chunks generated
-print(f"Number of Chunks Generated: {len(chunks_ques_gen)}")
 
 document_ques_gen = [Document(page_content=t) for t in chunks_ques_gen]
-# This suggests that each chunk is being treated as a separate document
+
+# print the chunks
+print("\nCreated Document Objects:")
+for doc in document_ques_gen:
+    print(doc.page_content)
+
 
 splitter_ans_gen = TokenTextSplitter(
     model_name='gpt-3.5-turbo',
-    chunk_size=1000,
-    chunk_overlap=100
+    chunk_size=200,
+    chunk_overlap=70
 )
 
-document_answer_gen = splitter_ans_gen.split_documents(document_ques_gen)
+document_answer_gen = splitter_ans_gen.split_documents(
+    document_ques_gen
+)
 
 llm_ques_gen_pipeline = ChatOpenAI(
     temperature=0.3,
@@ -57,51 +61,50 @@ llm_ques_gen_pipeline = ChatOpenAI(
 )
 
 prompt_template = """
-        आपण साहित्य आणि कागदपत्रांवर आधारित प्रश्न तयार करण्यात निपुण आहात.
-        आपला उद्दिष्ट एक चॅटबॉट प्रशिक्षित करण्यासाठी दृढ प्रश्न आणि उत्तर डेटाबेस तयार करणे आहे.
-        आपल्याला खालील मजकूर विशेषज्ञांच्या विषयी प्रश्न प्रस्तुत करायचे आहे:
-        
-        ------------
-        {text}
-        ------------
+         साहित्य आणि कागदपत्रांवर आधारित प्रश्न तयार करण्यात तुम्ही तज्ञ आहात.
+         चॅटबॉटला प्रशिक्षण देण्यासाठी एक मजबूत प्रश्न आणि उत्तर डेटाबेस तयार करणे हे तुमचे ध्येय आहे.
+         तुम्ही खालील मजकुराबद्दल प्रश्न विचारून हे करता:
 
-        सरकारचे कोणत्याही कायद्यांबद्दल माहिती मिळवण्यासाठी प्रश्न तयार करा.
-        महत्त्वाची कोणतीही माहिती गमू नये हे सुनिश्चित करा.
+         ------------
+         {text}
+         ------------
 
-        प्रश्न:
-        """
+         असे प्रश्न तयार करा जे वापरकर्त्यांना कोणत्याही सरकारी कायद्याबद्दल माहिती मिळवण्यास मदत करतील.
+         कोणतीही महत्वाची माहिती गमावणार नाही याची खात्री करा.
 
-refine_template = ("""
-        आपण सरकारी साहित्य आणि कागदपत्रांवर आधारित प्रश्न तयार करण्यात निपुण आहात.
-        आपला उद्दिष्ट एक वापरकर्त्याला कोणत्याही सरकारी नियमांबद्दल माहिती मिळवण्यास मदत करणे आहे.
-        आम्ही काही अभ्यास प्रश्ने प्राप्त केल्या आहेत आणि ते काही प्रमाणात आहेत: {existing_answer}.
-        आम्हाला विकसित करण्याचा पर्याय आहे किंवा नवीन प्रश्न जोडण्याचा.
-        (आवश्यक असल्यास) काही अधिक संदर्भाशी खात्री.
-        ------------
-        {text}
-        ------------
-
-        नवीन संदर्भ दिल्यानुसार, मूळ प्रश्नांचे संशोधन करा.
-        जर संदर्भ मदतगार नसेल तर, कृपया मूळ प्रश्न प्रदान करा.
-        
-        प्रश्न:
-        """
-)
-
-
+         प्रश्न:
+         """
 
 PROMPT_QUESTIONS = PromptTemplate(template=prompt_template, input_variables=["text"])
 
-REFINE_PROMPT_QUESTIONS = PromptTemplate(input_variables=["existing_answer", "text"], template=refine_template)
+# refine_template = ("""
+#          सरकारी साहित्य आणि कागदपत्रांवर आधारित प्रश्न तयार करण्यात तुम्ही तज्ञ आहात.
+#          तुमचे ध्येय हे आहे की वापरकर्त्याला कोणत्याही सरकारी नियमांशी संबंधित माहिती मिळवण्यात मदत करा.
+#          आम्हाला काही सराव प्रश्न काही प्रमाणात प्राप्त झाले आहेत: {existing_answer}.
+#          आमच्याकडे विद्यमान प्रश्न परिष्कृत करण्याचा किंवा नवीन जोडण्याचा पर्याय आहे.
+#          (फक्त आवश्यक असल्यास) खाली आणखी काही संदर्भांसह.
+#          ------------
+#          {text}
+#          ------------
+
+#          नवीन संदर्भ लक्षात घेता मूळ प्रश्न मराठीत परिष्कृत करा.
+#          संदर्भ उपयुक्त नसल्यास, कृपया मूळ प्रश्न प्रदान करा.
+#          प्रश्न:
+#          """
+#          )
+
+# REFINE_PROMPT_QUESTIONS = PromptTemplate(
+#     input_variables=["existing_answer", "text"],
+#     template=refine_template,
+# )
 
 ques_gen_chain = load_summarize_chain(llm=llm_ques_gen_pipeline, 
                                       chain_type="refine", 
                                       verbose=True, 
-                                      question_prompt=PROMPT_QUESTIONS,
-                                      refine_prompt=REFINE_PROMPT_QUESTIONS
+                                      question_prompt=PROMPT_QUESTIONS 
                                       )
 
-
+# refine_prompt=REFINE_PROMPT_QUESTIONS
 ques = ques_gen_chain.run(document_ques_gen)
 
 print(ques)
