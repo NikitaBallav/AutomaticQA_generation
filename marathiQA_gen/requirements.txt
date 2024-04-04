@@ -12,3 +12,5 @@ python-multipart
 PyPDF2
 transformers
 faiss_cpu
+pillow
+pytesseract
