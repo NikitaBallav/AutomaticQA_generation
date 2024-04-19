@@ -1,20 +1,16 @@
 from langchain.chains.question_answering import load_qa_chain
-from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
 from langchain.text_splitter import TokenTextSplitter
 from langchain.docstore.document import Document
 from langchain.prompts import PromptTemplate
-from langchain_openai import OpenAIEmbeddings
-from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains.summarize import load_summarize_chain
-from langchain.chains import RetrievalQA
 import os 
 import csv
 from langchain_community.vectorstores import FAISS
 
 
 
-os.environ["OPENAI_API_KEY"] = "enter your openAPI key"
+os.environ["OPENAI_API_KEY"] = "enter your key"
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -118,18 +114,6 @@ chain_type = "stuff"
 ques_list = ques.split("\n")
 
 answer_generation_chain = load_qa_chain(llm_answer_gen, chain_type)
-
-# Answer each question and save to a file
-# for question in ques_list:
-#     print("Question: ", question)
-#     answer = answer_generation_chain.run(input_documents=document_answer_gen, question=question)
-#     print("Answer: ", answer)
-#     print("--------------------------------------------------\n\n")
-#     # Save answer to file
-#     with open("answers.txt", "a", encoding="utf-8") as f:
-#         f.write("Question: " + question + "\n")
-#         f.write("Answer: " + answer + "\n")
-#         f.write("--------------------------------------------------\n\n")
 
 
 # Extract the file name without extension
