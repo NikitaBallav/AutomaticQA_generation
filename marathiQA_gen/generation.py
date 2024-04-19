@@ -1,24 +1,25 @@
+from langchain.chains.question_answering import load_qa_chain
+from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
-from langchain.chains import QAGenerationChain
 from langchain.text_splitter import TokenTextSplitter
 from langchain.docstore.document import Document
-from langchain.document_loaders import PyPDFLoader
 from langchain.prompts import PromptTemplate
 from langchain_openai import OpenAIEmbeddings
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.chains.summarize import load_summarize_chain
 from langchain.chains import RetrievalQA
 import os 
+import csv
 from langchain_community.vectorstores import FAISS
-from transformers import MBartForConditionalGeneration, MBart50TokenizerFast
 
 
-os.environ["OPENAI_API_KEY"] = "ai key"
+
+os.environ["OPENAI_API_KEY"] = "enter your openAPI key"
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Set file path
-file_path = 'a142.txt'
+file_path = 'marathiStory.txt'
 
 # Load data from text file
 with open(file_path, 'r', encoding='utf-8') as file:
@@ -56,82 +57,104 @@ document_answer_gen = splitter_ans_gen.split_documents(
 )
 
 llm_ques_gen_pipeline = ChatOpenAI(
-    temperature=0.3,
+    temperature=0.5,
     model="gpt-3.5-turbo"
 )
 
 prompt_template = """
-         साहित्य आणि कागदपत्रांवर आधारित प्रश्न तयार करण्यात तुम्ही तज्ञ आहात.
-         चॅटबॉटला प्रशिक्षण देण्यासाठी एक मजबूत प्रश्न आणि उत्तर डेटाबेस तयार करणे हे तुमचे ध्येय आहे.
-         तुम्ही खालील मजकुराबद्दल प्रश्न विचारून हे करता:
+You are an expert at creating questions based on the context in Marathi language.
+Your task is to generate question answer pairs in Marathi language assuming a Marathi chatbot which is answering user questions regarding any government document in Marathi language on a government portal.
+Your goal is to prepare a robust Question and Answer database to train a chatbot in Marathi language.
+You do this by asking questions about the text below:
 
-         ------------
-         {text}
-         ------------
+------------
+{text}
+------------
 
-         असे प्रश्न तयार करा जे वापरकर्त्यांना कोणत्याही सरकारी कायद्याबद्दल माहिती मिळवण्यास मदत करतील.
-         कोणतीही महत्वाची माहिती गमावणार नाही याची खात्री करा.
+Create questions that will help the users to gain information regarding any government document.
+Make sure not to lose any important information.
 
-         प्रश्न:
-         """
-
+QUESTIONS:
+"""
 PROMPT_QUESTIONS = PromptTemplate(template=prompt_template, input_variables=["text"])
 
-# refine_template = ("""
-#          सरकारी साहित्य आणि कागदपत्रांवर आधारित प्रश्न तयार करण्यात तुम्ही तज्ञ आहात.
-#          तुमचे ध्येय हे आहे की वापरकर्त्याला कोणत्याही सरकारी नियमांशी संबंधित माहिती मिळवण्यात मदत करा.
-#          आम्हाला काही सराव प्रश्न काही प्रमाणात प्राप्त झाले आहेत: {existing_answer}.
-#          आमच्याकडे विद्यमान प्रश्न परिष्कृत करण्याचा किंवा नवीन जोडण्याचा पर्याय आहे.
-#          (फक्त आवश्यक असल्यास) खाली आणखी काही संदर्भांसह.
-#          ------------
-#          {text}
-#          ------------
 
-#          नवीन संदर्भ लक्षात घेता मूळ प्रश्न मराठीत परिष्कृत करा.
-#          संदर्भ उपयुक्त नसल्यास, कृपया मूळ प्रश्न प्रदान करा.
-#          प्रश्न:
-#          """
-#          )
+refine_template = ("""
+You are an expert at creating questions based on government circulars and documentation.
+Your task is to generate question answer pairs in Marathi language assuming a Marathi chatbot which is answering user questions regarding any government document in Marathi language on a government portal.
+you are capable of framing all possible questions from the Marathi text below.
+We have the option to refine the existing questions.
+(only if necessary) with some more context below.
+------------
+{text}
+------------
 
-# REFINE_PROMPT_QUESTIONS = PromptTemplate(
-#     input_variables=["existing_answer", "text"],
-#     template=refine_template,
-# )
+Given the new context, refine the original questions in Marathi.
+If the context is not helpful, please provide the original questions.
+QUESTIONS:
+"""
+)
 
-ques_gen_chain = load_summarize_chain(llm=llm_ques_gen_pipeline, 
-                                      chain_type="refine", 
-                                      verbose=True, 
-                                      question_prompt=PROMPT_QUESTIONS 
-                                      )
+REFINE_PROMPT_QUESTIONS = PromptTemplate(
+    input_variables=["text"],
+    template=refine_template,
+    )
 
-# refine_prompt=REFINE_PROMPT_QUESTIONS
+ques_gen_chain = load_summarize_chain(llm = llm_ques_gen_pipeline, 
+                                                chain_type = "refine", 
+                                                verbose = True, 
+                                                question_prompt=PROMPT_QUESTIONS, 
+                                                refine_prompt=REFINE_PROMPT_QUESTIONS)
+
+
 ques = ques_gen_chain.run(document_ques_gen)
 
 print(ques)
 
 
-embeddings = OpenAIEmbeddings()
-
-vector_store = FAISS.from_documents(document_answer_gen, embeddings)
-
-llm_answer_gen = ChatOpenAI(temperature=0.1, model="gpt-3.5-turbo")
+llm_answer_gen = ChatOpenAI(temperature=0.3, model="gpt-3.5-turbo")
+chain_type = "stuff"
 
 ques_list = ques.split("\n")
 
-answer_generation_chain = RetrievalQA.from_chain_type(llm=llm_answer_gen, 
-                                                      chain_type="stuff", 
-                                                      retriever=vector_store.as_retriever())
-
+answer_generation_chain = load_qa_chain(llm_answer_gen, chain_type)
 
 # Answer each question and save to a file
-for question in ques_list:
-    print("Question: ", question)
-    answer = answer_generation_chain.run(question)
-    print("Answer: ", answer)
-    print("--------------------------------------------------\n\n")
-    # Save answer to file
-    with open("answers.txt", "a", encoding="utf-8") as f:
-        f.write("Question: " + question + "\n")
-        f.write("Answer: " + answer + "\n")
-        f.write("--------------------------------------------------\n\n")
+# for question in ques_list:
+#     print("Question: ", question)
+#     answer = answer_generation_chain.run(input_documents=document_answer_gen, question=question)
+#     print("Answer: ", answer)
+#     print("--------------------------------------------------\n\n")
+#     # Save answer to file
+#     with open("answers.txt", "a", encoding="utf-8") as f:
+#         f.write("Question: " + question + "\n")
+#         f.write("Answer: " + answer + "\n")
+#         f.write("--------------------------------------------------\n\n")
 
+
+# Extract the file name without extension
+file_name = os.path.splitext(os.path.basename(file_path))[0]
+
+# Define the CSV file name with the corresponding text file name
+csv_file_name = f"{file_name}_question_answers.csv"
+
+# Open the CSV file in write mode
+with open(csv_file_name, "w", newline="", encoding="utf-8") as csvfile:
+    # Define the field names for the CSV
+    fieldnames = ["Question", "Answer"]
+    # Create a CSV writer object
+    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    # Write the header row
+    writer.writeheader()
+
+    # Answer each question and save to the CSV file
+    for question in ques_list:
+        print("Question: ", question)
+        # Answer each question using the QA chain
+        answer = answer_generation_chain.run(input_documents=document_answer_gen, question=question)
+        print("Answer: ", answer)
+        print("--------------------------------------------------\n\n")
+        # Write question and answer to the CSV file
+        writer.writerow({"Question": question, "Answer": answer})
+
+print(f"CSV file '{csv_file_name}' has been saved with the question-answer pairs corresponding to the text file.")
