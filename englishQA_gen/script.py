@@ -13,7 +13,7 @@ from langchain_community.vectorstores import FAISS
 import csv
 
 
-os.environ["OPENAI_API_KEY"] = "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"
+os.environ["OPENAI_API_KEY"] = "enter api key"
 
 # Define the directory containing the PDF files
 directory = 'C:\chatbot nic\engdata\english8'
